@@ -1,8 +1,8 @@
 <!--
 ---
 page_type: sample
-name: "Quickstart: Azure Cosmos DB for MongoDB and Azure SDK for Node.js"
-description: This is a simple Express  web application to illustrate common basic usage of Azure Cosmos DB for MongoDB and the Azure SDK for Node.js.
+name: "Quickstart: Azure Cosmos DB for MongoDB and Node.js"
+description: This is a simple Express  web application to illustrate common basic usage of Azure Cosmos DB for MongoDB and Node.js.
 urlFragment: template
 languages:
 - typescript
@@ -13,9 +13,9 @@ products:
 ---
 -->
 
-# Quickstart: Azure Cosmos DB for MongoDB - Azure SDK for Node.js
+# Quickstart: Azure Cosmos DB for MongoDB - Node.js
 
-This is a simple Express web application to illustrate common basic usage of Azure Cosmos DB for MongoDB with the Azure SDK for Node.js
+This is a simple Express web application to illustrate common basic usage of Azure Cosmos DB for MongoDB with Node.js
 
 ## Prerequisites
 
