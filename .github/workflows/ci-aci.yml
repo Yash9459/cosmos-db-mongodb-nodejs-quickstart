@@ -1,0 +1,70 @@
+name: build-and-deploy-to-aci
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR login
+        run: |
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
+            -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+      - name: Build & push API image
+        run: |
+          docker build -f Dockerfile.api -t ${{ secrets.ACR_LOGIN_SERVER }}/demo-api:${{ github.sha }} .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/demo-api:${{ github.sha }}
+
+      - name: Build & push Worker image
+        run: |
+          docker build -f Dockerfile.worker -t ${{ secrets.ACR_LOGIN_SERVER }}/demo-worker:${{ github.sha }} .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/demo-worker:${{ github.sha }}
+
+  deploy-test:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy API to ACI
+        uses: azure/aci-deploy@v1
+        with:
+          resource-group: rg-demo
+          name: ci-demo-api-test
+          dns-name-label: demo-api-test-${{ github.run_number }}
+          image: ${{ secrets.ACR_LOGIN_SERVER }}/demo-api:${{ github.sha }}
+          registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          registry-username: ${{ secrets.ACR_USERNAME }}
+          registry-password: ${{ secrets.ACR_PASSWORD }}
+          ports: 3000
+          secure-environment-variables: |
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            MONGO_DB=${{ secrets.MONGO_DB }}
+
+      - name: Deploy Worker to ACI
+        uses: azure/aci-deploy@v1
+        with:
+          resource-group: rg-demo
+          name: ci-demo-worker-test
+          image: ${{ secrets.ACR_LOGIN_SERVER }}/demo-worker:${{ github.sha }}
+          registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          registry-username: ${{ secrets.ACR_USERNAME }}
+          registry-password: ${{ secrets.ACR_PASSWORD }}
+          secure-environment-variables: |
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            MONGO_DB=${{ secrets.MONGO_DB }}
+            QUEUE_COLLECTION=${{ secrets.QUEUE_COLLECTION }}
+            HISTORY_COLLECTION=${{ secrets.HISTORY_COLLECTION }}
+
