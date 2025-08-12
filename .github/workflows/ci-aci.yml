@@ -17,11 +17,10 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Login to ACR for docker push (no admin creds needed here)
       - name: ACR login (via az)
         run: |
-          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"   # e.g. myregistry.azurecr.io
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"                   # -> myregistry
+          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           az acr login --name "$ACR_NAME"
 
       - name: Build & push API image
@@ -44,13 +43,10 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Get fresh ACR admin creds at runtime
       - name: Get ACR credentials
-        id: acr
         run: |
           ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"
           ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
-          # ensure admin is enabled (idempotent)
           az acr update -n "$ACR_NAME" --admin-enabled true 1>/dev/null
           echo "ACR_USER=$(az acr credential show -n "$ACR_NAME" --query username -o tsv)" >> $GITHUB_ENV
           echo "ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query passwords[0].value -o tsv)" >> $GITHUB_ENV
@@ -81,6 +77,7 @@ jobs:
           registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
           registry-username: ${{ env.ACR_USER }}
           registry-password: ${{ env.ACR_PASS }}
+          ip-address: None
           secure-environment-variables: |
             MONGO_URI=${{ secrets.MONGO_URI }}
             MONGO_DB=${{ secrets.MONGO_DB }}
