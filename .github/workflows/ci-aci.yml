@@ -73,11 +73,14 @@ jobs:
           resource-group: rg-demo
           location: ${{ secrets.ACI_LOCATION }}
           name: ci-demo-worker-test
+          # make the action happy: give it a public IP + DNS label
+          ip-address: Public
+          dns-name-label: demo-worker-test-${{ github.run_number }}
           image: ${{ secrets.ACR_LOGIN_SERVER }}/demo-worker:${{ github.sha }}
           registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
           registry-username: ${{ env.ACR_USER }}
           registry-password: ${{ env.ACR_PASS }}
-          ip-address: None
+          # no ports needed for the worker, but the action defaults to 80 anyway
           secure-environment-variables: |
             MONGO_URI=${{ secrets.MONGO_URI }}
             MONGO_DB=${{ secrets.MONGO_DB }}
