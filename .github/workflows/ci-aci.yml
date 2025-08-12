@@ -19,8 +19,8 @@ jobs:
 
       - name: ACR login (via az; no admin creds)
         run: |
-          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"   # e.g. myregistry.azurecr.io
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"                   # -> myregistry
+          ACR_LOGIN_SERVER="${{ secrets.ACR_LOGIN_SERVER }}"
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           az acr login --name "$ACR_NAME"
 
       - name: Build & push API image
@@ -47,10 +47,13 @@ jobs:
         uses: azure/aci-deploy@v1
         with:
           resource-group: rg-demo
+          location: ${{ secrets.ACI_LOCATION }}
           name: ci-demo-api-test
           dns-name-label: demo-api-test-${{ github.run_number }}
           image: ${{ secrets.ACR_LOGIN_SERVER }}/demo-api:${{ github.sha }}
           registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          registry-username: ${{ secrets.ACR_USERNAME }}
+          registry-password: ${{ secrets.ACR_PASSWORD }}
           ports: 3000
           secure-environment-variables: |
             MONGO_URI=${{ secrets.MONGO_URI }}
@@ -60,9 +63,12 @@ jobs:
         uses: azure/aci-deploy@v1
         with:
           resource-group: rg-demo
+          location: ${{ secrets.ACI_LOCATION }}
           name: ci-demo-worker-test
           image: ${{ secrets.ACR_LOGIN_SERVER }}/demo-worker:${{ github.sha }}
           registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          registry-username: ${{ secrets.ACR_USERNAME }}
+          registry-password: ${{ secrets.ACR_PASSWORD }}
           secure-environment-variables: |
             MONGO_URI=${{ secrets.MONGO_URI }}
             MONGO_DB=${{ secrets.MONGO_DB }}
