@@ -1,0 +1,127 @@
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+- group: demo-test  # pulls variables from the variable group
+
+# Useful image tags
+- name: IMAGE_TAG
+  value: $(Build.SourceVersion)   # commit SHA; you can switch to $(Build.BuildId)
+
+stages:
+
+# Stage 1: Build and push both images to ACR
+- stage: BuildAndPush
+  displayName: Build and push images
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+    # Build & push API
+    - task: Docker@2
+      displayName: Build and push API image
+      inputs:
+        containerRegistry: 'sc-acr-ACRBasic94'
+        repository: 'demo-api'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile.api'
+        tags: |
+          $(IMAGE_TAG)
+
+    # Build & push Worker
+    - task: Docker@2
+      displayName: Build and push worker image
+      inputs:
+        containerRegistry: 'sc-acr-ACRBasic94'
+        repository: 'demo-worker'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile.worker'
+        tags: |
+          $(IMAGE_TAG)
+
+# Stage 2: Deploy to Test (ACI)
+- stage: DeployTest
+  displayName: Deploy to Test
+  dependsOn: BuildAndPush
+  jobs:
+  - deployment: DeployToTest
+    displayName: ACI deploy (Test)
+    environment: 'test'   # ties to ADO Environment for approvals, if set
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: none
+          - task: AzureCLI@2
+            displayName: Login and deploy API + Worker to ACI
+            inputs:
+              azureSubscription: 'sc-azure-rg-demo'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+
+                API_IMAGE="$(ACR_LOGIN_SERVER)/demo-api:$(IMAGE_TAG)"
+                WORKER_IMAGE="$(ACR_LOGIN_SERVER)/demo-worker:$(IMAGE_TAG)"
+
+                echo "Deploying API: $API_IMAGE"
+                if az container show -g $(RG_NAME) -n $(ACI_API_NAME) >/dev/null 2>&1; then
+                  az container update \
+                    -g $(RG_NAME) -n $(ACI_API_NAME) \
+                    --image "$API_IMAGE" \
+                    --set containers[0].ports[0].port=3000 \
+                    --restart-policy Always \
+                    --registry-login-server $(ACR_LOGIN_SERVER) \
+                    --registry-username "$(ACR_USERNAME)" \
+                    --registry-password "$(ACR_PASSWORD)" \
+                    --secure-environment-variables \
+                      MONGO_URI="$(MONGO_URI)" \
+                      MONGO_DB="$(MONGO_DB)"
+                else
+                  az container create \
+                    -g $(RG_NAME) -n $(ACI_API_NAME) \
+                    --image "$API_IMAGE" \
+                    --dns-name-label demo-api-test-$(Build.BuildId) \
+                    --ports 3000 \
+                    --restart-policy Always \
+                    --registry-login-server $(ACR_LOGIN_SERVER) \
+                    --registry-username "$(ACR_USERNAME)" \
+                    --registry-password "$(ACR_PASSWORD)" \
+                    --secure-environment-variables \
+                      MONGO_URI="$(MONGO_URI)" \
+                      MONGO_DB="$(MONGO_DB)"
+                fi
+
+                echo "Deploying Worker: $WORKER_IMAGE"
+                if az container show -g $(RG_NAME) -n $(ACI_WORKER_NAME) >/dev/null 2>&1; then
+                  az container update \
+                    -g $(RG_NAME) -n $(ACI_WORKER_NAME) \
+                    --image "$WORKER_IMAGE" \
+                    --restart-policy Always \
+                    --registry-login-server $(ACR_LOGIN_SERVER) \
+                    --registry-username "$(ACR_USERNAME)" \
+                    --registry-password "$(ACR_PASSWORD)" \
+                    --secure-environment-variables \
+                      MONGO_URI="$(MONGO_URI)" \
+                      MONGO_DB="$(MONGO_DB)" \
+                      QUEUE_COLLECTION="$(QUEUE_COLLECTION)" \
+                      HISTORY_COLLECTION="$(HISTORY_COLLECTION)"
+                else
+                  az container create \
+                    -g $(RG_NAME) -n $(ACI_WORKER_NAME) \
+                    --image "$WORKER_IMAGE" \
+                    --restart-policy Always \
+                    --registry-login-server $(ACR_LOGIN_SERVER) \
+                    --registry-username "$(ACR_USERNAME)" \
+                    --registry-password "$(ACR_PASSWORD)" \
+                    --secure-environment-variables \
+                      MONGO_URI="$(MONGO_URI)" \
+                      MONGO_DB="$(MONGO_DB)" \
+                      QUEUE_COLLECTION="$(QUEUE_COLLECTION)" \
+                      HISTORY_COLLECTION="$(HISTORY_COLLECTION)"
+                fi
